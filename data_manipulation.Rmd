@@ -2,7 +2,7 @@
 title: "Data Manipulation"
 #author: Talea Cornelius
 #date: 09/17/2020
-output: githubl_document
+output: github_document
 ---
 
 ```{r setup}

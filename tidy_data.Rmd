@@ -1,0 +1,198 @@
+---
+title: "Tidy Data"
+#author: Talea Cornelius
+#date: 09/17/2020
+output: github_document
+---
+
+```{r setup}
+library(tidyverse)
+library(haven)
+
+options(tibble.print_min = 5)
+```
+```{r}
+pulse_data = haven::read_sas("./data/public_pulse_data.sas7bdat") %>%
+  janitor::clean_names()
+pulse_data
+```
+```{r wide to long}
+pulse_tidy_data = 
+  pivot_longer(
+    pulse_data, 
+    bdi_score_bl:bdi_score_12m,
+    names_to = "visit", 
+    values_to = "bdi")
+
+pulse_tidy_data
+```
+
+```{r wide to long}
+#remove prefix from names
+
+pulse_tidy_data = 
+  pivot_longer(
+    pulse_data, 
+    bdi_score_bl:bdi_score_12m,
+    names_to = "visit", 
+    names_prefix = "bdi_score_",
+    values_to = "bdi")
+
+pulse_tidy_data
+```
+```{r pipe data wide to long and clean}
+
+pulse_data = 
+  haven::read_sas("./data/public_pulse_data.sas7bdat") %>%
+  janitor::clean_names() %>%
+  pivot_longer(
+    bdi_score_bl:bdi_score_12m,
+    names_to = "visit", 
+    names_prefix = "bdi_score_",
+    values_to = "bdi") %>%
+  select(id, visit, everything()) %>%
+  mutate(
+    visit = replace(visit, visit == "bl", "00m"),
+    visit = factor(visit, levels = str_c(c("00", "01", "06", "12"), "m"))) %>% #str_c treats missing values properly, rather than thinking NA is a string
+  arrange(id, visit)
+
+print(pulse_data, n = 12)
+
+```
+
+```{r}
+read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>% 
+  janitor::clean_names() %>%
+  count(group) 
+```
+
+```{r separate dose and day from group variable}
+litters_data = 
+  read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>% 
+  janitor::clean_names() %>%
+  separate(group, into = c("dose", "day_of_tx"), sep = 3) %>%
+  mutate(
+    dose = str_to_lower(dose),
+    wt_gain = gd18_weight - gd0_weight) %>%
+  arrange(litter_number)
+
+litters_data
+```
+Write a data cleaning chain that retains only litter_number and these columns; produces new variables gd and weight; and makes gd a numeric variable taking values 0 and 18
+
+```{r}
+litters_data = 
+  read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>% 
+  janitor::clean_names() %>%
+  pivot_longer(
+    c(gd0_weight, gd18_weight),
+    names_to = "gd",
+    values_to = "weight") %>%
+  mutate(gd = recode(gd,"gd0_weight" = 0, "gd18_weight" = 18))
+
+select(litters_data, litter_number, gd, weight)
+
+```
+```{r}
+analysis_result = tibble(
+  group = c("treatment", "treatment", "placebo", "placebo"),
+  time = c("pre", "post", "pre", "post"),
+  mean = c(4, 8, 3.5, 4)
+)
+
+analysis_result
+```
+
+```{r}
+pivot_wider(
+  analysis_result, 
+  names_from = "time", 
+  values_from = "mean")
+```
+We’re pretty much there now – in some cases you migth use select to reorder columns, and (depending on your goal) use knitr::kable() to produce a nicer table for reading.
+
+```{r}
+fellowship_ring = 
+  readxl::read_excel("./data/LotR_Words.xlsx", range = "B3:D6") %>%
+  mutate(movie = "fellowship_ring")
+
+two_towers = 
+  readxl::read_excel("./data/LotR_Words.xlsx", range = "F3:H6") %>%
+  mutate(movie = "two_towers")
+
+return_king = 
+  readxl::read_excel("./data/LotR_Words.xlsx", range = "J3:L6") %>%
+  mutate(movie = "return_king")
+
+view(fellowship_ring)
+view(two_towers)
+view(return_king)
+```
+
+```{r}
+lotr_tidy = 
+  bind_rows(fellowship_ring, two_towers, return_king) %>%
+  janitor::clean_names() %>%
+  pivot_longer(
+    female:male,
+    names_to = "sex", 
+    values_to = "words") %>%
+  mutate(race = str_to_lower(race)) %>% 
+  select(movie, everything()) 
+
+lotr_tidy
+```
+There are four major ways join dataframes x and y:
+
+Inner: keeps data that appear in both x and y
+Left: keeps data that appear in x
+Right: keeps data that appear in y
+Full: keeps data that appear in either x or y
+
+Left joins are the most common, because they add data from a smaller table y into a larger table x without removing anything from x.
+
+As an example, consider the data tables in FAS_pups.csv and FAS_litters.csv, which are related through the Litter Number variable. The former contains data unique to each pup, and the latter contains data unique to each litter. We can combine these using a left join of litter data into pup data; doing so retains data on each pup and adds data in new columns.
+
+```{r}
+pup_data = 
+  read_csv("./data/FAS_pups.csv", col_types = "ciiiii") %>%
+  janitor::clean_names() %>%
+  mutate(sex = recode(sex, `1` = "male", `2` = "female")) 
+
+litter_data = 
+  read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>%
+  janitor::clean_names() %>%
+  select(-pups_survive) %>%
+  mutate(
+    wt_gain = gd18_weight - gd0_weight,
+    group = str_to_lower(group))
+
+fas_data = 
+  left_join(pup_data, litter_data, by = "litter_number")
+fas_data
+```
+Note that joining is not particularly amenable to the %>% operator because it is fundamentally non-linear: two separate datasets are coming together, rather than a single dataset being processed in a step-by-step fashion.
+
+
+```{r}
+surv_os = 
+  read_csv("./data/surv_os.csv", col_types = "cc") %>%
+  janitor::clean_names() %>%
+  rename(uni = what_is_your_uni, os = what_operating_system_do_you_use)
+
+surv_p_git = 
+  read_csv("./data/surv_program_git.csv", col_types = "ccc") %>%
+  janitor::clean_names() %>%
+  rename(uni = what_is_your_uni, program = what_is_your_degree_program,
+         experience = which_most_accurately_describes_your_experience_with_git)
+
+surv_data = 
+  left_join(surv_os, surv_p_git, by = "uni")
+surv_data
+```
+
+
+
+
+
+
