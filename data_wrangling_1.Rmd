@@ -1,0 +1,138 @@
+---
+title: "Data Import"
+output: githubl_document
+---
+
+```{r setup}
+library(tidyverse)
+library(readxl)
+library(haven)
+```
+
+```{r notes on paths}
+# Shorthand	Meaning
+# ~	Home directory
+# .	Current working directory
+# ..	One directory up from current working directory
+# ../..	Two directories up from current working directory
+```
+
+```{r}
+getwd()
+```
+```{r}
+litters_data = read_csv(file = "./data/FAS_litters.csv")
+## Parsed with column specification:
+## cols(
+##   Group = col_character(),
+##   `Litter Number` = col_character(),
+##   `GD0 weight` = col_double(),
+##   `GD18 weight` = col_double(),
+##   `GD of Birth` = col_double(),
+##   `Pups born alive` = col_double(),
+##   `Pups dead @ birth` = col_double(),
+##   `Pups survive` = col_double()
+## )
+```
+```{r}
+names(litters_data)
+```
+```{r}
+litters_data = janitor::clean_names(litters_data)
+names(litters_data)
+```
+```{r}
+litters_data
+```
+
+```{r}
+tail(litters_data, 5)
+```
+
+```{r}
+skimr::skim(litters_data)
+```
+
+```{r}
+view(litters_data)
+```
+
+Arguments to read_*:
+
+col_names: usually TRUE. If FALSE, column names are X1, X1, … . You can also supply column names.
+na: string vector containing character expressions for missing values.
+skip: number of rows to skip before reading data.
+
+```{r}
+litters_data_part = read_csv(file = "./data/FAS_litters.csv",
+  skip = 10, col_names = FALSE)
+```
+
+
+I skipped the col_types argument because it’s worth talking about in some detail. The read_* functions will attempt to guess the data type stored in each column; by default, these guesses are based on the first 1000 rows. The guesses are also usually pretty good. In some cases, though, you’ll want to give explicit column specifications. This is done using the cols function, and each column is given a column type:
+
+```{r}
+
+litters_data = read_csv(file = "./data/FAS_litters.csv",
+  col_types = cols(
+    Group = col_character(),
+    `Litter Number` = col_character(),
+    `GD0 weight` = col_double(),
+    `GD18 weight` = col_double(),
+    `GD of Birth` = col_integer(),
+    `Pups born alive` = col_integer(),
+    `Pups dead @ birth` = col_integer(),
+    `Pups survive` = col_integer()
+  )
+)
+head(litters_data)
+
+```
+```{r shorthand for column types}
+litters_data = read_csv(file = "./data/FAS_litters.csv",
+  col_types = "ccddiiii"
+)
+litters_data
+```
+
+```{r}
+mlb11_data = read_excel("data/mlb11.xlsx", n_max = 20)
+head(mlb11_data, 5)
+```
+
+```{r}
+pulse_data = read_sas("./data/public_pulse_data.sas7bdat")
+head(pulse_data, 5)
+```
+```{r read.csv has unwanted behavior}
+pups_base = read.csv("./data/FAS_pups.csv")
+pups_readr = read_csv("./data/FAS_pups.csv")
+
+View(pups_base)
+View(pups_readr)
+
+pups_base
+pups_readr
+
+pups_base$S
+pups_readr$S
+```
+
+```{r}
+pups_base = janitor::clean_names(pups_base)
+pups_readr = janitor::clean_names(pups_readr)
+
+pups_base$S
+pups_readr$S
+```
+
+
+Use write_* from the readr package to write data to a file.
+
+
+
+
+
+
+
+
