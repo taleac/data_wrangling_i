@@ -1,0 +1,182 @@
+---
+title: "Data Manipulation"
+#author: Talea Cornelius
+#date: 09/17/2020
+output: githubl_document
+---
+
+```{r setup}
+library(tidyverse)
+
+options(tibble.print_min = 3)
+```
+
+```{r import data}
+
+litters_data = read_csv("./data/FAS_litters.csv",
+  col_types = "ccddiiii")
+litters_data = janitor::clean_names(litters_data)
+
+pups_data = read_csv("./data/FAS_pups.csv",
+  col_types = "ciiiii")
+pups_data = janitor::clean_names(pups_data)
+```
+
+```{r select}
+#variable names
+select(litters_data, group, litter_number, gd0_weight, pups_born_alive)
+
+#column range
+select(litters_data, group:gd_of_birth)
+
+#remove column
+select(litters_data, -pups_survive)
+
+#rename variable
+select(litters_data, GROUP = group, LiTtEr_NuMbEr = litter_number)
+
+#rename variable and keep everything else
+rename(litters_data, GROUP = group, LiTtEr_NuMbEr = litter_number)
+
+#starts_with(), ends_with(), and contains()
+select(litters_data, starts_with("gd"))
+
+#reorganize columns without discarding anything
+select(litters_data, litter_number, pups_survive, everything())
+
+#can also use relocate to organize
+relocate(litters_data, litter_number, pups_survive)
+
+```
+
+Like other functions in dplyr, select will export a dataframe even if you only select one column. Mostly this is fine, but sometimes you want the vector stored in the column. To pull a single variable, use pull.
+
+
+```{r filter}
+filter(litters_data, gd_of_birth == 20)
+
+filter(litters_data, pups_born_alive >= 2)
+
+filter(litters_data, pups_survive != 4)
+
+filter(litters_data, !(pups_survive == 4))
+
+filter(litters_data, group %in% c("Con7", "Con8"))
+
+filter(litters_data, group == "Con7" & gd_of_birth == 20)
+```
+
+You will often filter using comparison operators (>, >=, <, <=, ==, and !=). You may also use %in% to detect if values appear in a set, and is.na() to find missing values. The results of comparisons are logical – the statement is TRUE or FALSE depending on the values you compare – and can be combined with other comparisons using the logical operators & and |, or negated using !.
+
+A very common filtering step requires you to omit missing observations. You can do this with filter, but I recommend using drop_na from the tidyr package:
+
+```{r missingness}
+drop_na(litters_data) #remove any row with a missing value
+drop_na(litters_data, wt_increase) #remove rows for which wt_increase is missing.
+```
+
+```{r mutate}
+#create a new variable and convert another to lowercase
+
+mutate(litters_data,
+  wt_gain = gd18_weight - gd0_weight,
+  group = str_to_lower(group)
+)
+```
+Your new variables can be functions of old variables
+New variables appear at the end of the dataset in the order that they are created
+You can overwrite old variables
+You can create a new variable and immediately refer to (or change) it
+
+```{r arrange}
+head(arrange(litters_data, group, pups_born_alive), 10)
+```
+How should you clean data? Two primary options. One is intermediate datsets; the other is nested function calls.
+
+```{r intermediate datasets}
+litters_data_raw = read_csv("./data/FAS_litters.csv",
+  col_types = "ccddiiii")
+litters_data_clean_names = janitor::clean_names(litters_data_raw)
+litters_data_selected_cols = select(litters_data_clean_names, -pups_survive)
+litters_data_with_vars = 
+  mutate(
+    litters_data_selected_cols, 
+    wt_gain = gd18_weight - gd0_weight,
+    group = str_to_lower(group))
+litters_data_with_vars_without_missing = 
+  drop_na(litters_data_with_vars, wt_gain)
+litters_data_with_vars_without_missing
+```
+
+```{r nested function calls}
+litters_data_clean = 
+  drop_na(
+    mutate(
+      select(
+        janitor::clean_names(
+          read_csv("./data/FAS_litters.csv", col_types = "ccddiiii")
+          ), 
+      -pups_survive
+      ),
+    wt_gain = gd18_weight - gd0_weight,
+    group = str_to_lower(group)
+    ),
+  wt_gain
+  )
+
+litters_data_clean
+```
+
+These are both confusing and bad: the first gets confusing and clutters our workspace, and the second has to be read inside out.
+
+Piping solves this problem. It allows you to turn the nested approach into a sequential chain by passing the result of one function call as an argument to the next function call using %>%:
+
+```{r piping with %>%}
+litters_data = 
+  read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>%
+  janitor::clean_names() %>%
+  select(-pups_survive) %>%
+  mutate(
+    wt_gain = gd18_weight - gd0_weight,
+    group = str_to_lower(group)) %>% 
+  drop_na(wt_gain)
+```
+
+All three approaches result in the same dataset, but the piped commands are by far the most straightforward. The easiest way to read %>% is “then”; the keyboard shortcuts are Ctrl + Shift + M (Windows) and Cmd + Shift + M (Mac).
+
+The functions in dplyr (and much of the tidyverse) are designed to work smoothly with the pipe operator. By default, the pipe will take the result of one function call and use that as the first argument of the next function call; by design, functions in dplyr will take a tibble as an input and return a tibble as a result. As a consequence, functions in dplyr are easy to connect in a data cleaning chain. You can make this more explicit by using . as a placeholder for the result of the preceding call:
+
+```{r}
+litters_data = 
+  read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>%
+  janitor::clean_names(dat = .) %>%
+  select(.data = ., -pups_survive) %>%
+  mutate(.data = .,
+    wt_gain = gd18_weight - gd0_weight,
+    group = str_to_lower(group)) %>% 
+  drop_na(data = ., wt_gain)
+```
+```{r}
+head(litters_data, 10)
+```
+
+In this example, the dataset argument is called dat in janitor::clean_names, .data in the dplyr functions, and data in drop_na – which is definitely confusing. In the majority of cases (and everywhere in the tidyverse) you’ll elide the first argument and be happy with life, but there are some cases where the placeholder is necessary. For example, to regress wt_gain on pups_born_alive, you might use:
+
+```{r}
+litters_data %>%
+  lm(wt_gain ~ pups_born_alive, data = .) %>%
+  broom::tidy()
+```
+
+
+```{r}
+read_csv("./data/FAS_pups.csv", col_types = "ciiiii") %>%
+  janitor::clean_names() %>% 
+  filter(sex == 1) %>% 
+  select(-pd_ears) %>% 
+  mutate(pd_pivot_gt7 = pd_pivot > 7)
+```
+
+
+
+
